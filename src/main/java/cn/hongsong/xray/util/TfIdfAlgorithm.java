@@ -34,7 +34,7 @@ public class TfIdfAlgorithm {
 	/**
 	 * 所有文件tf结果.key:文件名,value:该文件tf
 	 */
-	private static Map<String, Map<String, Double>> allTfMap = new HashMap<String, Map<String, Double>>();  
+	private static final Map<String, Map<String, Double>> allTfMap = new HashMap<String, Map<String, Double>>();  
 	
 	/**
 	 * 所有文件分词结果.key:文件名,value:该文件分词统计
