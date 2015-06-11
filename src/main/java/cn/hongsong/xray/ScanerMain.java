@@ -18,8 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * 主扫描器.
@@ -29,10 +27,10 @@ import java.util.logging.Logger;
 public class ScanerMain {
 
     public static void main(String[] args) throws Exception {
-        findGoodQuestions();
+//        findGoodQuestions();
 //        System.out.println(String.format"(%1$tM:%1$tS:%1$tL", new Long(00001l)));
 //        outputResult(getAllGoods());
-//        syncQuestion(getAllGoods());
+        syncQuestion(getAllGoods());
     }
 
     /**
@@ -106,6 +104,7 @@ public class ScanerMain {
                 System.out.println((i + 1) * 100.0 * MAX / total + "%");
 //                connection.
                 connection.close();
+                System.out.println("" + (i * 100 / total) + "%");
                 connection = connectToSource();
             }
 
@@ -181,6 +180,16 @@ public class ScanerMain {
         }
     }
 
+    /**
+     * 格式化文本用于SQL脚本. 主要是将"'"换为"\\'".
+     *
+     * @param s
+     * @return
+     */
+    private static String formatToSql(String s) {
+        return s.replaceAll("'", "\\'");
+    }
+
     private static void outputResult(List<Map<String, String>> result) throws SQLException {
         long start = System.currentTimeMillis();
         Connection resultConn = null;
@@ -230,10 +239,13 @@ public class ScanerMain {
             System.out.println("======================== 中国好题目 结果导入 ==================================");
             String update = "update question set content = '%s' where id = '%s'";
             int c = 0;
+
             for (Map<String, String> q : result) {
                 c++;
-                if (c % 10 == 0) {
+                //每100次重置一下远程数据库连接.
+                if (c % 100 == 0) {
                     srcConn.close();
+                    System.out.println("" + (c * 100 / result.size()) + "%");
                     srcConn = connectToSource();
 
                 }
@@ -242,7 +254,18 @@ public class ScanerMain {
                 ResultSet question = srcConn.prepareCall(String.format("select * from t_z_5ECB539B2C4A4C4397DB1188F2118143_question where id='%s'", id)).executeQuery();
                 //根据题干生成xray
                 while (question.next()) {
-                    resultConn.prepareStatement(String.format(update, blobToString(question.getBlob("content")), id)).executeUpdate();
+                    String content = formatToSql(blobToString(question.getBlob("content")));
+                    try {
+                        resultConn.prepareStatement(
+                                String.format(update, content,
+                                        id)).executeUpdate();
+//                    } catch (MySQLSyntaxErrorException sQLException) {
+//                        System.out.println(String.format("导入题目[%s]失败:\n{%s}",id,content));
+//                        throw sQLException;
+                    } catch (SQLException sQLException) {
+                        System.out.println(String.format("导入题目[%s]失败:\n{%s}", id, content));
+                        throw sQLException;
+                    }
                 }
 
 //                connection.
@@ -297,7 +320,8 @@ public class ScanerMain {
 
             //将优选题目保存到数据库中
             System.out.println("find all good questions");
-            String find = "select * from question";
+            //只查询出没有题干的内容.
+            String find = "select * from question where content is null";
             int c = 0;
             ResultSet goods = resultConn.prepareStatement(find).executeQuery();
             List<Map<String, String>> list = new ArrayList<Map<String, String>>();
